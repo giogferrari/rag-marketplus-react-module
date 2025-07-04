@@ -4,6 +4,7 @@ import './App.css';
 import type { ItemData } from './interface/ItemData';
 import { Routes, Route, NavLink } from 'react-router-dom';
 import Select from 'react-select';
+import React from 'react';
 
 // Placeholder for item icon
 const ItemIcon = () => <span className="item-icon" role="img" aria-label="Espada">🗡️</span>;
@@ -31,6 +32,7 @@ function MainHeader() {
 function MainPage() {
   const [input, setInput] = useState('');
   const [data, setData] = useState<ItemData[]>([]);
+  const [allItems, setAllItems] = useState<ItemData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAtributos, setSelectedAtributos] = useState<{ value: string; label: string }[]>([]);
@@ -70,8 +72,10 @@ function MainPage() {
     try {
       const response = await axios.get(requestUrl);
       setData(response.data || []);
+      setAllItems(response.data || []);
     } catch (error) {
       setData([]);
+      setAllItems([]);
     } finally {
       setIsLoading(false);
     }
@@ -81,6 +85,7 @@ function MainPage() {
     setInput('');
     setSearchTerm('');
     setData([]);
+    setAllItems([]);
   };
 
   // Handler for react-select multi-select
@@ -91,6 +96,37 @@ function MainPage() {
   // Handler for react-select single-select
   const handleSlotsChange = (selected: any) => {
     setSelectedSlots(selected);
+  };
+
+  // Filtering logic for Filtrar button
+  const handleFiltrar = () => {
+    let filtered = allItems;
+    // Filter by atributos
+    if (selectedAtributos.length > 0) {
+      const selectedPrefixes = selectedAtributos.map(opt => opt.value.replace(/\d+/g, 'X').replace(/X+/, ''));
+      filtered = filtered.filter(item => {
+        if (!Array.isArray(item.opts)) return false;
+        // For each selected atributo, at least one item.opts must match the prefix (ignoring the number)
+        return selectedPrefixes.every(prefix =>
+          item.opts.some((opt: string) => {
+            // Remove the number from opt for comparison
+            const optPrefix = opt.replace(/\d+/g, 'X').replace(/X+/, '');
+            return optPrefix === prefix;
+          })
+        );
+      });
+    }
+    // Filter by slots
+    if (selectedSlots && selectedSlots.value !== '') {
+      filtered = filtered.filter(item => String(item.slot ?? 0) === selectedSlots.value);
+    }
+    setData(filtered);
+  };
+
+  const handleLimparFiltros = () => {
+    setSelectedAtributos([]);
+    setSelectedSlots(null);
+    setData(allItems);
   };
 
   return (
@@ -168,7 +204,8 @@ function MainPage() {
             }}
           />
         </div>
-        <button className="filter-btn" type="button">Filtrar</button>
+        <button className="filter-btn" type="button" onClick={handleFiltrar}>Filtrar</button>
+        <button className="filter-btn" type="button" style={{ marginLeft: 8, background: '#bfc9d8', color: '#15344a' }} onClick={handleLimparFiltros}>Limpar filtros</button>
       </form>
 
       {/* Table Header */}
@@ -189,7 +226,7 @@ function MainPage() {
 
       {/* Item Rows */}
       {data.map((item: any, idx) => (
-        <div className={`item-row${idx === 0 ? ' highlight' : ''}`} key={item.id}>
+        <div className={`item-row${idx === 0 ? ' highlight' : ''}`} key={`${item.id}-${idx}`}>
           {/* ITEM column */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -200,8 +237,8 @@ function MainPage() {
             </div>
             <div className="bonus-section">
               <div style={{ fontWeight: 'bold' }}>Bônus Aleatórios:</div>
-              {Array.isArray(item.opts) && item.opts.length > 0 ? (
-                item.opts.map((opt: string, i: number) => <div key={i}>{opt}</div>)
+              {((item.opts as string[] ?? []).length > 0) ? (
+                (item.opts as string[] ?? []).map((opt: string, i: number) => <div key={i}>{opt}</div>)
               ) : (
                 <div>Nenhum bônus</div>
               )}
@@ -211,7 +248,7 @@ function MainPage() {
                 {item.cards
                   .filter((card: any) => card && typeof card.card_name === 'string' && card.card_name.trim() !== '')
                   .map((card: any, idx: number) => (
-                    <span key={card.card_id || idx} style={{
+                    <span key={`${card.card_id ?? 'noid'}-${idx}`} style={{
                       display: 'flex',
                       alignItems: 'center',
                       background: '#fff',

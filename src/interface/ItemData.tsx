@@ -5,4 +5,6 @@ export interface ItemData {
     image: string;
     price: number;
     name: string;
+    opts?: string[];
+    slot?: number;
 }
